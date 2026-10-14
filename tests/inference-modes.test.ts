@@ -8,6 +8,30 @@ import { ingestVault, openIndex, skillsNeedingVectors, upsertVector, vectorTopK 
 import type { Config } from "../src/types";
 
 describe("embedding fingerprint", () => {
+  test("tracks effective document format while preserving query-only and legacy vector compatibility", async () => {
+    const config = await loadConfig("/does/not/exist/config.toml");
+    const original = embeddingFingerprint(config);
+    expect(original).toBe(`local:${config.inference.mode === "local" ? config.inference.bundle : ""}:${config.inference.embedding.model}:${config.inference.embedding.dimension}`);
+
+    config.inference.embedding.query_prefix = "Custom query: ";
+    expect(embeddingFingerprint(config)).toBe(original);
+    config.inference.embedding.document_prefix = "Document: ";
+    expect(embeddingFingerprint(config)).not.toBe(original);
+    const customDocument = embeddingFingerprint(config);
+    config.inference.embedding.query_prefix = "Another query: ";
+    expect(embeddingFingerprint(config)).toBe(customDocument);
+    config.inference.embedding.document_prefix = "";
+    expect(embeddingFingerprint(config)).toBe(original);
+
+    config.inference.embedding.model = "intfloat/e5-base-v2";
+    delete config.inference.embedding.document_prefix;
+    const preset = embeddingFingerprint(config);
+    config.inference.embedding.document_prefix = "passage: ";
+    expect(embeddingFingerprint(config)).toBe(preset);
+    config.inference.embedding.document_prefix = "";
+    expect(embeddingFingerprint(config)).not.toBe(preset);
+  });
+
   test("changes with model identity even when dimensions match", async () => {
     const local = await loadConfig("/does/not/exist/config.toml");
     const remote: Config = {

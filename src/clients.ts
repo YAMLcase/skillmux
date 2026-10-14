@@ -1,4 +1,4 @@
-import type { Clients, Config, RemoteRerankerConfig } from "./types";
+import type { Clients, Config, EmbeddingRole, RemoteRerankerConfig } from "./types";
 import { expandHome } from "./config";
 import { assertHostAllowed } from "./install";
 import type { pipeline as createPipeline } from "@huggingface/transformers";
@@ -287,6 +287,10 @@ async function getLocalEmbedder(config: Config): Promise<FeatureExtractor> {
   return localEmbedder;
 }
 
+const HARRIER_MODEL = /(?:^|\/)microsoft\/harrier-oss-v1-(?:270m|0\.6b|27b)$/;
+const HARRIER_QUERY_PREFIX =
+  "Instruct: Given a task description, retrieve relevant skills that help complete the task.\nQuery: ";
+
 /**
  * Real HTTP clients or in-process local ONNX inference clients.
  * Every remote HTTP call is bounded by inference.timeout_ms; timeouts and transport
@@ -295,7 +299,7 @@ async function getLocalEmbedder(config: Config): Promise<FeatureExtractor> {
  */
 export function createClients(config: Config): Clients {
   const clients: Clients = {
-    async embed(texts: string[]): Promise<Float32Array[]> {
+    async embed(texts: string[], role?: EmbeddingRole): Promise<Float32Array[]> {
       if (config.inference.mode === "local") {
         const pipe = await getLocalEmbedder(config);
         const output = await pipe(texts, { pooling: "mean", normalize: true });
@@ -315,6 +319,9 @@ export function createClients(config: Config): Clients {
       }
 
       const embedding = config.inference.embedding;
+      const input = role === "query" && HARRIER_MODEL.test(embedding.model)
+        ? texts.map((text) => HARRIER_QUERY_PREFIX + text)
+        : texts;
       assertInferenceHostAllowed(embedding.endpoint, config.egress?.allowed_hosts);
       let response: Response;
       try {
@@ -324,7 +331,7 @@ export function createClients(config: Config): Clients {
             "content-type": "application/json",
             ...authorizationHeaders(embedding.api_key_env, "inference.embedding.api_key_env"),
           },
-          body: JSON.stringify({ model: embedding.model, input: texts }),
+          body: JSON.stringify({ model: embedding.model, input }),
           signal: AbortSignal.timeout(config.inference.timeout_ms),
         });
       } catch (error) {

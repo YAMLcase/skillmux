@@ -173,6 +173,37 @@ const docs = [
 ];
 
 describe("embedding client", () => {
+  test.each([
+    ["microsoft/harrier-oss-v1-270m", true],
+    ["microsoft/harrier-oss-v1-0.6b", true],
+    ["microsoft/harrier-oss-v1-27b", true],
+    ["infinity/microsoft/harrier-oss-v1-0.6b", true],
+    ["Xenova/gte-small", false],
+    ["another/embedding-model", false],
+    ["another/harrier-oss-v1-0.6b", false],
+  ])("formats only Harrier queries for model %s", async (model, needsInstruction) => {
+    const config = testConfig();
+    if (config.inference.mode !== "remote") throw new Error("expected remote");
+    config.inference.embedding.model = model;
+    const clients = createClients(config);
+    const texts = ["diagnose stopped containers", "write a test"];
+
+    await clients.embed(texts, "query");
+    expect(requests.at(-1)?.body).toEqual({
+      model,
+      input: needsInstruction ? [
+        "Instruct: Given a task description, retrieve relevant skills that help complete the task.\nQuery: diagnose stopped containers",
+        "Instruct: Given a task description, retrieve relevant skills that help complete the task.\nQuery: write a test",
+      ] : texts,
+    });
+
+    await clients.embed(texts, "document");
+    expect(requests.at(-1)?.body).toEqual({ model, input: texts });
+    await clients.embed(texts);
+    expect(requests.at(-1)?.body).toEqual({ model, input: texts });
+    expect(texts).toEqual(["diagnose stopped containers", "write a test"]);
+  });
+
   test("uses optional Bearer auth and returns vectors", async () => {
     process.env.SKILLMUX_TEST_EMBED_KEY = "vk-test-key";
     const clients = createClients(

@@ -212,7 +212,10 @@ export interface FetchAuditRow {
   rank_at_resolve: number | null;
 }
 
+export type EmbeddingRole = "query" | "document";
+
 export interface Clients {
-  embed(texts: string[]): Promise<Float32Array[]>;
+  /** Omitted role preserves plain document input for existing callers. */
+  embed(texts: string[], role?: EmbeddingRole): Promise<Float32Array[]>;
   rerank?: (query: string, docs: { skill_id: string; text: string }[]) => Promise<number[]>;
 }

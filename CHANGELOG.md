@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.17.0](https://github.com/klhq/skillmux/compare/v1.16.0...v1.17.0) (2026-10-14)
+
+
+### Added
+
+* **embedding:** configure model input prefixes ([#225](https://github.com/klhq/skillmux/issues/225)) ([e9b7ffd](https://github.com/klhq/skillmux/commit/e9b7ffd5ef7cbe3a32441a796c3f3fbab17c1ce0))
+
+
+### Fixed
+
+* **retrieval:** exclude stale and incompatible vectors ([#224](https://github.com/klhq/skillmux/issues/224)) ([a293ebc](https://github.com/klhq/skillmux/commit/a293ebc5dfb37722f93412f06dafd6cb81130d81))
+* **retrieval:** improve lexical skill ID and name recall ([#227](https://github.com/klhq/skillmux/issues/227)) ([3aec628](https://github.com/klhq/skillmux/commit/3aec6283d181b8133e98721c169719726af69aa3))
+* **retrieval:** match English word forms in lexical search ([#228](https://github.com/klhq/skillmux/issues/228)) ([ad44e37](https://github.com/klhq/skillmux/commit/ad44e37d5c551541cfbdc42dd41d36c53218c53a))
+
 ## [1.16.0](https://github.com/klhq/skillmux/compare/v1.15.0...v1.16.0) (2026-10-05)
 
 

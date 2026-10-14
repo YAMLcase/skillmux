@@ -23,10 +23,6 @@ export function openIndex(stateDir: string): Database {
     aliases TEXT NOT NULL,
     content_sha256 TEXT NOT NULL
   )`);
-  db.run(`CREATE VIRTUAL TABLE IF NOT EXISTS skills_fts USING fts5(
-    skill_id UNINDEXED, title, description, aliases,
-    tokenize = 'unicode61 remove_diacritics 2'
-  )`);
   db.run(`CREATE TABLE IF NOT EXISTS vectors (
     skill_id TEXT PRIMARY KEY,
     content_sha256 TEXT NOT NULL,
@@ -43,7 +39,24 @@ export function openIndex(stateDir: string): Database {
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
   )`);
+  migrateLexicalIndex(db);
   return db;
+}
+
+/** Rebuild only the derived FTS data; canonical skills and vectors stay intact. */
+function migrateLexicalIndex(db: Database): void {
+  db.transaction(() => {
+    const version = getIndexMeta(db, "lexical_schema_version");
+    if (version === "1") return;
+    db.run("DROP TABLE IF EXISTS skills_fts");
+    db.run(`CREATE VIRTUAL TABLE skills_fts USING fts5(
+      skill_id, title, description, aliases,
+      tokenize = 'unicode61 remove_diacritics 2'
+    )`);
+    db.run(`INSERT INTO skills_fts (skill_id, title, description, aliases)
+      SELECT skill_id, title, description, aliases FROM skills`);
+    setIndexMeta(db, "lexical_schema_version", "1");
+  })();
 }
 
 export function upsertSkill(db: Database, skill: VaultSkill): void {

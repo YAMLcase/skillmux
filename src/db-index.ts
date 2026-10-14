@@ -47,15 +47,15 @@ export function openIndex(stateDir: string): Database {
 function migrateLexicalIndex(db: Database): void {
   db.transaction(() => {
     const version = getIndexMeta(db, "lexical_schema_version");
-    if (version === "1") return;
+    if (version === "2") return;
     db.run("DROP TABLE IF EXISTS skills_fts");
     db.run(`CREATE VIRTUAL TABLE skills_fts USING fts5(
       skill_id, title, description, aliases,
-      tokenize = 'unicode61 remove_diacritics 2'
+      tokenize = "unicode61 remove_diacritics 2 tokenchars '+#'"
     )`);
     db.run(`INSERT INTO skills_fts (skill_id, title, description, aliases)
       SELECT skill_id, title, description, aliases FROM skills`);
-    setIndexMeta(db, "lexical_schema_version", "1");
+    setIndexMeta(db, "lexical_schema_version", "2");
   })();
 }
 
@@ -128,15 +128,16 @@ export function getSkillRow(db: Database, skillId: string): SkillRow | null {
  * Sanitize free text into an FTS5 OR-query; returns null when no usable terms
  * remain. Terms keep any Unicode letters/digits (CJK included) so non-ASCII
  * queries still get lexical recall — unicode61 tokenizes contiguous CJK runs
- * as single tokens, so matching works at that granularity.
+ * as single tokens, so matching works at that granularity. Keep + and # to
+ * agree with the index tokenizer and distinguish technical names like C++/C#.
  */
 export function toFtsQuery(text: string): string | null {
   const terms = [
     ...new Set(
       text
         .toLowerCase()
-        .split(/[^\p{L}\p{N}]+/u)
-        .filter((t) => t.length > 0),
+        .split(/[^\p{L}\p{N}+#]+/u)
+        .filter((t) => /[\p{L}\p{N}]/u.test(t)),
     ),
   ];
   if (terms.length === 0) return null;

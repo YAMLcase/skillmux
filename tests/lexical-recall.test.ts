@@ -76,3 +76,33 @@ test("opening a legacy index rebuilds searchable IDs and preserves canonical row
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("technical names keep C++, C# and C distinct across migration and incremental indexing", () => {
+  const dir = mkdtempSync(join(tmpdir(), "skillmux-symbol-fts-"));
+  let db = openIndex(dir);
+  try {
+    const rows = [
+      skill("cpp-help", { title: "C++ programming" }),
+      skill("csharp-help", { aliases: "C#" }),
+      skill("c-help", { description: "C programming" }),
+    ];
+    replaceSkills(db, rows);
+    // Emulate the preceding ID-indexed schema to verify the tokenizer upgrade.
+    db.run("DROP TABLE skills_fts");
+    db.run("CREATE VIRTUAL TABLE skills_fts USING fts5(skill_id, title, description, aliases, tokenize = 'unicode61 remove_diacritics 2')");
+    db.run("INSERT INTO skills_fts SELECT skill_id, title, description, aliases FROM skills");
+    db.run("UPDATE index_meta SET value = '1' WHERE key = 'lexical_schema_version'");
+    db.close();
+    db = openIndex(dir);
+    expect(ftsSearch(db, "C++", 5).map((row) => row.skill_id)).toEqual(["cpp-help"]);
+    expect(ftsSearch(db, "C#", 5).map((row) => row.skill_id)).toEqual(["csharp-help"]);
+    expect(ftsSearch(db, "C", 5).map((row) => row.skill_id)).toEqual(["c-help"]);
+    expect(ftsSearch(db, "++ #", 5)).toEqual([]);
+    replaceSkills(db, rows);
+    expect(ftsSearch(db, "help with C++!", 5).map((row) => row.skill_id)).toContain("cpp-help");
+    expect(ftsSearch(db, "C#", 5).map((row) => row.skill_id)).toEqual(["csharp-help"]);
+  } finally {
+    db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

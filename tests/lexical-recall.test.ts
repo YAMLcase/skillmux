@@ -106,3 +106,23 @@ test("technical names keep C++, C# and C distinct across migration and increment
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("complete IDs precede complete titles and BM25-only candidates within the lexical budget", () => {
+  withIndex((db) => {
+    const longDescription = "General instructions ".repeat(100);
+    replaceSkills(db, [
+      skill("zebra-widget", { description: longDescription }),
+      skill("title-match", { title: "ZEBRA-WIDGET", description: longDescription }),
+      skill("mentions-only", { title: "zebra widget", description: "zebra widget" }),
+      skill("another-mention", { description: "zebra widget" }),
+    ]);
+    expect(ftsSearch(db, " ZEBRA-WIDGET ", 1).map((row) => row.skill_id)).toEqual(["zebra-widget"]);
+    expect(ftsSearch(db, "zebra-widget", 2).map((row) => row.skill_id)).toEqual(["zebra-widget", "title-match"]);
+    const all = ftsSearch(db, "zebra-widget", 4).map((row) => row.skill_id);
+    expect(all.slice(0, 2)).toEqual(["zebra-widget", "title-match"]);
+    expect(new Set(all).size).toBe(4);
+    expect(ftsSearch(db, "zebra-widget", 0)).toEqual([]);
+    expect(ftsSearch(db, "\" OR 1=1 --", 4)).toEqual([]);
+    expect(db.query("SELECT count(*) AS n FROM skills").get()).toEqual({ n: 4 });
+  });
+});

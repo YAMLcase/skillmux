@@ -145,16 +145,25 @@ export function toFtsQuery(text: string): string | null {
 }
 
 export function ftsSearch(db: Database, text: string, k: number): SkillRow[] {
+  if (k <= 0) return [];
   const query = toFtsQuery(text);
   if (query === null) return [];
-  return db
+  const name = text.trim().toLowerCase();
+  const exact = db.query(`SELECT * FROM skills
+    WHERE lower(skill_id) = ? OR lower(title) = ?
+    ORDER BY CASE WHEN lower(skill_id) = ? THEN 0 ELSE 1 END, skill_id
+    LIMIT ?`).all(name, name, name, k) as SkillRow[];
+  if (exact.length === k) return exact;
+  const ranked = db
     .query(
       `SELECT s.* FROM skills_fts f
        JOIN skills s ON s.skill_id = f.skill_id
        WHERE skills_fts MATCH ?
-       ORDER BY bm25(skills_fts) LIMIT ?`,
+       ORDER BY bm25(skills_fts), s.skill_id LIMIT ?`,
     )
     .all(query, k) as SkillRow[];
+  const seen = new Set(exact.map((row) => row.skill_id));
+  return [...exact, ...ranked.filter((row) => !seen.has(row.skill_id))].slice(0, k);
 }
 
 export function findExactMatch(db: Database, query: string): SkillRow | null {

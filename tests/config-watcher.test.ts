@@ -10,6 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ConfigWatcher, type ReloadStatus } from "../src/config-watcher";
+import { RELOADABLE_KEYS, RESTART_REQUIRED_KEYS } from "../src/config-service";
 import type { Config } from "../src/types";
 
 // ---------------------------------------------------------------------------
@@ -91,6 +92,37 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("ConfigWatcher", () => {
+  test.each([
+    { field: "query_prefix", reload: true },
+    { field: "document_prefix", reload: false },
+  ])("applies the correct reload policy for $field", async ({ field, reload }) => {
+    const root = mkdtempSync(join(tmpdir(), "skillmux-cw-prefix-"));
+    dirs.push(root);
+    const tomlPath = join(root, "config.toml");
+    writeToml(tomlPath, baseToml());
+    const received: Config[] = [];
+    const watcher = await ConfigWatcher.start(tomlPath, {
+      onReload: (config) => received.push(config),
+      onError: (error) => { throw error; },
+    });
+
+    try {
+      writeToml(tomlPath, baseToml() + `${field} = "Task: "\n`);
+      await waitFor(() => received.length > 0 || watcher.reloadStatus().restart_required_keys.length > 0);
+      const key = `inference.embedding.${field}`;
+      expect(RELOADABLE_KEYS.includes(key)).toBe(reload);
+      expect(RESTART_REQUIRED_KEYS.includes(key)).toBe(!reload);
+      expect(watcher.reloadStatus().restart_required_keys).toEqual(reload ? [] : [key]);
+      if (reload) {
+        expect(received.at(-1)?.inference.embedding.query_prefix).toBe("Task: ");
+      } else {
+        expect(received).toEqual([]);
+      }
+    } finally {
+      watcher.stop();
+    }
+  });
+
   test("should tolerate an absent optional config directory", async () => {
     const root = mkdtempSync(join(tmpdir(), "skillmux-cw-missing-dir-"));
     dirs.push(root);

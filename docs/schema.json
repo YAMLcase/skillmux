@@ -225,7 +225,9 @@
                 "model": { "const": "Xenova/gte-small" },
                 "dimension": { "const": 384 },
                 "device": { "type": "string" },
-                "dtype": { "type": "string" }
+                "dtype": { "type": "string" },
+                "query_prefix": { "type": "string", "description": "Query prefix override. Omit for the known-model preset; an empty string disables client formatting." },
+                "document_prefix": { "type": "string", "description": "Document prefix override. Omit for the known-model preset; an empty string disables client formatting. Changes require restart and vector backfill." }
               },
               "required": ["model", "dimension"],
               "additionalProperties": false
@@ -250,7 +252,9 @@
                 },
                 "model": { "type": "string", "minLength": 1 },
                 "dimension": { "type": "integer", "minimum": 1 },
-                "api_key_env": { "type": "string", "minLength": 1 }
+                "api_key_env": { "type": "string", "minLength": 1 },
+                "query_prefix": { "type": "string", "description": "Query prefix override. Omit for the known-model preset; an empty string disables client formatting." },
+                "document_prefix": { "type": "string", "description": "Document prefix override. Omit for the known-model preset; an empty string disables client formatting. Changes require restart and vector backfill." }
               },
               "required": ["provider", "endpoint", "model", "dimension"],
               "additionalProperties": false

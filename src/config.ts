@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { z } from "zod";
 import { SUPPORTED_AGENT_IDS } from "./agent-ids";
 import { isGitUrl } from "./git-url";
+import { resolveEmbeddingPrefixes } from "./embedding-format";
 import type { Config, ONNXDevice, ONNXDtype } from "./types";
 
 const onnxDeviceSchema = z.enum([
@@ -17,6 +18,8 @@ const onnxDtypeSchema = z.enum([
 
 const modelSchema = z.object({
   model: z.string().min(1),
+  query_prefix: z.string().optional(),
+  document_prefix: z.string().optional(),
   device: onnxDeviceSchema.optional(),
   dtype: onnxDtypeSchema.optional(),
 }).strict();
@@ -70,6 +73,8 @@ const configSchema = z.object({
         model: z.string().min(1),
         dimension: z.number().int().positive(),
         api_key_env: z.string().min(1).optional(),
+        query_prefix: z.string().optional(),
+        document_prefix: z.string().optional(),
       }).strict(),
       reranker: z.object({
         adapter: z.enum(["jina-v1", "bifrost-v1"]),
@@ -169,7 +174,11 @@ export function embeddingFingerprint(config: Config): string {
   const inference = config.inference;
   const implementation =
     inference.mode === "local" ? `local:${inference.bundle}` : `remote:${inference.embedding.provider}`;
-  return `${implementation}:${inference.embedding.model}:${inference.embedding.dimension}`;
+  const base = `${implementation}:${inference.embedding.model}:${inference.embedding.dimension}`;
+  const prefix = resolveEmbeddingPrefixes(inference.embedding).document_prefix;
+  if (prefix === "") return base;
+  const hash = new Bun.CryptoHasher("sha256").update(prefix).digest("hex");
+  return `${base}:document-prefix:${hash}`;
 }
 
 export function rerankerFingerprint(config: Config): string | undefined {

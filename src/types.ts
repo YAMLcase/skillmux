@@ -48,7 +48,13 @@ export type ONNXDtype =
   | "q1"
   | "q1f16";
 
-export interface ModelConfig {
+export interface EmbeddingPrefixOverrides {
+  /** Omit to use the model preset; an empty string disables the prefix. */
+  query_prefix?: string;
+  document_prefix?: string;
+}
+
+export interface ModelConfig extends EmbeddingPrefixOverrides {
   model: string;
   device?: ONNXDevice;
   dtype?: ONNXDtype;
@@ -61,7 +67,7 @@ export interface LocalInferenceConfig {
   embedding: ModelConfig & { dimension: number };
 }
 
-export interface RemoteEmbeddingConfig {
+export interface RemoteEmbeddingConfig extends EmbeddingPrefixOverrides {
   provider: "openai";
   endpoint: string;
   model: string;
@@ -212,7 +218,10 @@ export interface FetchAuditRow {
   rank_at_resolve: number | null;
 }
 
+export type EmbeddingRole = "query" | "document";
+
 export interface Clients {
-  embed(texts: string[]): Promise<Float32Array[]>;
+  /** Omitted role preserves unformatted input for existing callers. */
+  embed(texts: string[], role?: EmbeddingRole): Promise<Float32Array[]>;
   rerank?: (query: string, docs: { skill_id: string; text: string }[]) => Promise<number[]>;
 }

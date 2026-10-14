@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { DEFAULT_CONFIG_PATH, expandHome, loadConfig } from "./config";
+import { resolveEmbeddingPrefixes } from "./embedding-format";
 import { describeDeployment } from "./deployment";
 import { isGitUrl } from "./git-url";
 import type { Config } from "./types";
@@ -54,6 +55,7 @@ export const RESTART_REQUIRED_KEYS = [
   "inference.embedding.dimension",
   "inference.embedding.device",
   "inference.embedding.dtype",
+  "inference.embedding.document_prefix",
 ];
 
 export const RELOADABLE_KEYS = [
@@ -66,6 +68,7 @@ export const RELOADABLE_KEYS = [
   "output.max_top_k",
   "inference.embedding.endpoint",
   "inference.embedding.api_key_env",
+  "inference.embedding.query_prefix",
   "inference.reranker.adapter",
   "inference.reranker.endpoint",
   "inference.reranker.model",
@@ -117,6 +120,13 @@ export function computeHash(data: unknown): string {
   return createHash("sha256").update(str).digest("hex").slice(0, 16);
 }
 
+/** Compare runtime and displayed configs using the same effective prefix values. */
+export function computeConfigHash(config: Config): string {
+  const normalized = structuredClone(config);
+  Object.assign(normalized.inference.embedding, resolveEmbeddingPrefixes(normalized.inference.embedding));
+  return computeHash(normalized);
+}
+
 export async function getEffectiveConfig(configPath?: string): Promise<{
   effective: Config;
   sources: ConfigSourceMap;
@@ -161,6 +171,8 @@ export async function getEffectiveConfig(configPath?: string): Promise<{
     "inference.embedding.dtype",
     "inference.embedding.endpoint",
     "inference.embedding.api_key_env",
+    "inference.embedding.query_prefix",
+    "inference.embedding.document_prefix",
     "inference.reranker.adapter",
     "inference.reranker.endpoint",
     "inference.reranker.model",
@@ -187,6 +199,7 @@ export async function getEffectiveConfig(configPath?: string): Promise<{
     }
   }
 
+  Object.assign(effective.inference.embedding, resolveEmbeddingPrefixes(effective.inference.embedding));
   return { effective, sources, rawToml };
 }
 
@@ -244,6 +257,8 @@ export function validateDottedKey(key: string): void {
     "inference.embedding.dtype",
     "inference.embedding.endpoint",
     "inference.embedding.api_key_env",
+    "inference.embedding.query_prefix",
+    "inference.embedding.document_prefix",
     "inference.reranker.adapter",
     "inference.reranker.endpoint",
     "inference.reranker.model",
@@ -264,6 +279,9 @@ export function validateDottedKey(key: string): void {
 }
 
 export function parseDottedValue(key: string, valueStr: string): unknown {
+  if (key === "inference.embedding.query_prefix" || key === "inference.embedding.document_prefix") {
+    return valueStr;
+  }
   if (key === "vault_url" && !isGitUrl(valueStr)) {
     throw new Error(
       `vault_url must be a git URL (https://, ssh://, git://, file://) or user@host:path, got "${valueStr}"`,

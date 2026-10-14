@@ -1,5 +1,6 @@
-import type { Clients, Config, RemoteRerankerConfig } from "./types";
+import type { Clients, Config, EmbeddingRole, RemoteRerankerConfig } from "./types";
 import { expandHome } from "./config";
+import { formatEmbeddingInputs } from "./embedding-format";
 import { assertHostAllowed } from "./install";
 import type { pipeline as createPipeline } from "@huggingface/transformers";
 
@@ -295,10 +296,11 @@ async function getLocalEmbedder(config: Config): Promise<FeatureExtractor> {
  */
 export function createClients(config: Config): Clients {
   const clients: Clients = {
-    async embed(texts: string[]): Promise<Float32Array[]> {
+    async embed(texts: string[], role?: EmbeddingRole): Promise<Float32Array[]> {
+      const input = formatEmbeddingInputs(texts, config.inference.embedding, role);
       if (config.inference.mode === "local") {
         const pipe = await getLocalEmbedder(config);
-        const output = await pipe(texts, { pooling: "mean", normalize: true });
+        const output = await pipe(input, { pooling: "mean", normalize: true });
         const dim = output.dims[1];
         if (
           dim === undefined ||
@@ -324,7 +326,7 @@ export function createClients(config: Config): Clients {
             "content-type": "application/json",
             ...authorizationHeaders(embedding.api_key_env, "inference.embedding.api_key_env"),
           },
-          body: JSON.stringify({ model: embedding.model, input: texts }),
+          body: JSON.stringify({ model: embedding.model, input }),
           signal: AbortSignal.timeout(config.inference.timeout_ms),
         });
       } catch (error) {

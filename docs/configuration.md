@@ -176,8 +176,70 @@ verify readiness.
 See [`config.remote.example.toml`](../config.remote.example.toml). Embeddings
 must implement the OpenAI-compatible `{ model, input }` contract. Configure the
 complete request URL as `inference.embedding.endpoint`; Skillmux does not append
-or rewrite its path or query string. Optional
-reranking uses a versioned wire-protocol adapter and a complete request URL:
+or rewrite its path or query string.
+
+### Embedding input formats
+
+Both inference modes accept optional `inference.embedding.query_prefix` and
+`inference.embedding.document_prefix` strings. An explicit value takes precedence
+over the model preset. An explicit empty string disables that side's client
+formatting. Omitting the field selects the verified preset for the configured
+model name, or plain input when the name is unknown.
+
+| Canonical model IDs | Query prefix | Document prefix |
+| --- | --- | --- |
+| `microsoft/harrier-oss-v1-270m`, `-0.6b`, `-27b` | Skill-retrieval task instruction below | Empty |
+| `Qwen/Qwen3-Embedding-0.6B`, `-4B`, `-8B` | Skill-retrieval task instruction below | Empty |
+| `intfloat/e5-small-v2`, `e5-base-v2`, `e5-large-v2` | `query: ` | `passage: ` |
+| `intfloat/multilingual-e5-small`, `-base`, `-large` | `query: ` | `passage: ` |
+| `BAAI/bge-small-en-v1.5`, `bge-base-en-v1.5`, `bge-large-en-v1.5` | `Represent this sentence for searching relevant passages: ` | Empty |
+
+Provider-prefixed canonical names such as `infinity/microsoft/harrier-oss-v1-0.6b`
+use the same preset. Custom aliases, fine-tunes and other variants require
+explicit prefixes when their format differs from plain text. For example,
+`intfloat/multilingual-e5-large-instruct` does not inherit the base E5 preset.
+A preset selects text formatting; it does not configure the inference engine,
+model dimensions or pooling. The default local GTE bundle keeps plain input.
+
+The Harrier and Qwen3 preset prepends this instruction to each query:
+
+```text
+Instruct: Given a task description, retrieve relevant skills that help complete the task.
+Query: <original query>
+```
+
+These defaults follow the documented query/document conventions for
+[Harrier](https://huggingface.co/microsoft/harrier-oss-v1-0.6b#usage),
+[Qwen3](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B#usage),
+[E5](https://huggingface.co/intfloat/e5-base-v2#faq),
+[multilingual E5](https://huggingface.co/intfloat/multilingual-e5-base#faq), and
+[English BGE v1.5](https://huggingface.co/BAAI/bge-base-en-v1.5#frequently-asked-questions).
+Measure ranking quality on your own queries before drawing performance conclusions.
+
+For a custom alias, set the prefixes in its existing embedding table:
+
+```toml
+[inference.embedding]
+# Keep the model, endpoint and other embedding settings here.
+query_prefix = "Instruct: Retrieve relevant skills for this task.\nQuery: "
+document_prefix = ""
+```
+
+When the inference service already handles query and document formatting, set
+both prefixes to `""`. Skillmux preserves prefix whitespace and newlines.
+`skillmux config show --sources` and `skillmux config get` report resolved values;
+an automatic preset has source `default`, and an explicit override has source
+`toml`. BM25 and reranking receive the original query.
+
+`query_prefix` reloads live and does not invalidate stored document vectors.
+`document_prefix` requires restart. The effective document prefix participates in
+the embedding fingerprint, so vector search excludes old-format vectors until
+startup backfill regenerates them. An empty effective document prefix preserves
+the legacy fingerprint. Upgrading a base E5 configuration from plain documents to
+the automatic `passage: ` format requires backfill; explicit `document_prefix = ""`
+preserves its previous plain-document format.
+
+Optional reranking uses a versioned wire-protocol adapter and a complete request URL:
 
 ```toml
 [inference.reranker]
@@ -239,6 +301,9 @@ max_top_k = 50
 - `recall.k_rerank` bounds the candidate shortlist sent to the reranker adapter (defaults to `10`, cannot exceed `k_lexical + k_vector`).
 - `output.top_k` sets the default maximum number of candidates returned by `resolve_skill` (defaults to `10`).
 - `output.max_top_k` sets the upper bound for per-request `top_k` overrides (defaults to `50`).
+
+When a remote reranker is configured, `output.max_top_k` must not exceed
+`recall.k_rerank`. Set `max_top_k = 10` for the reranking budget shown above.
 
 ### Failure visibility and degraded retrieval
 

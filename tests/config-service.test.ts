@@ -31,6 +31,34 @@ describe("Config Service (AC4, AC5, AC6)", () => {
     process.env = { ...origEnv };
   });
 
+  it("persists prefix overrides as exact strings and reports resolved defaults and sources", async () => {
+    for (const mode of ["local", "remote"]) {
+      const embedding = mode === "local"
+        ? '[inference]\nmode = "local"\n[inference.embedding]\nmodel = "Xenova/gte-small"\ndimension = 384\n'
+        : '[inference]\nmode = "remote"\ntimeout_ms = 2000\n[inference.embedding]\nprovider = "openai"\nendpoint = "https://embed.example.com/v1/embeddings"\nmodel = "intfloat/e5-base-v2"\ndimension = 768\n';
+      writeFileSync(CONFIG_FILE, embedding);
+      const defaults = await getEffectiveConfig(CONFIG_FILE);
+      expect(defaults.effective.inference.embedding.query_prefix).toBe(mode === "local" ? "" : "query: ");
+      expect(defaults.effective.inference.embedding.document_prefix).toBe(mode === "local" ? "" : "passage: ");
+      expect(defaults.sources["inference.embedding.query_prefix"]).toBe("default");
+      expect(defaults.sources["inference.embedding.document_prefix"]).toBe("default");
+
+      for (const prefix of ["", "true", "123", "  Task: \nQuery: "]) {
+        await setDottedKey("inference.embedding.query_prefix", prefix, { configPath: CONFIG_FILE });
+        await setDottedKey("inference.embedding.document_prefix", prefix, { configPath: CONFIG_FILE });
+        const { effective, sources } = await getEffectiveConfig(CONFIG_FILE);
+        expect(effective.inference.embedding.query_prefix).toBe(prefix);
+        expect(effective.inference.embedding.document_prefix).toBe(prefix);
+        expect(sources["inference.embedding.query_prefix"]).toBe("toml");
+        expect(sources["inference.embedding.document_prefix"]).toBe("toml");
+        const persisted = Bun.TOML.parse(readFileSync(CONFIG_FILE, "utf-8")) as {
+          inference: { embedding: { query_prefix: string } };
+        };
+        expect(persisted.inference.embedding.query_prefix).toBe(prefix);
+      }
+    }
+  });
+
   it("identifies sources as default, toml, or environment (AC4)", async () => {
     writeFileSync(
       CONFIG_FILE,

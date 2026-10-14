@@ -173,6 +173,83 @@ const docs = [
 ];
 
 describe("embedding client", () => {
+  test.each(["microsoft/harrier-oss-v1-0.6b", "Qwen/Qwen3-Embedding-0.6B", "intfloat/e5-base-v2", "custom-alias"])(
+    "explicit prefixes override presets independently, including empty strings, for %s",
+    async (model) => {
+      const config = testConfig();
+      if (config.inference.mode !== "remote") throw new Error("expected remote");
+      config.inference.embedding.model = model;
+      config.inference.embedding.query_prefix = "";
+      config.inference.embedding.document_prefix = "Document: \n";
+      const clients = createClients(config);
+
+      await clients.embed(["original text"], "query");
+      expect(requests.at(-1)?.body).toEqual({ model, input: ["original text"] });
+      await clients.embed(["original text"], "document");
+      expect(requests.at(-1)?.body).toEqual({ model, input: ["Document: \noriginal text"] });
+
+      config.inference.embedding.query_prefix = "Custom task: \n";
+      config.inference.embedding.document_prefix = "";
+      await clients.embed(["original text"], "query");
+      expect(requests.at(-1)?.body).toEqual({ model, input: ["Custom task: \noriginal text"] });
+      await clients.embed(["original text"], "document");
+      expect(requests.at(-1)?.body).toEqual({ model, input: ["original text"] });
+    },
+  );
+
+  test.each([
+    { model: "Qwen/Qwen3-Embedding-0.6B", query: "Instruct: Given a task description, retrieve relevant skills that help complete the task.\nQuery: ", document: "" },
+    { model: "gateway/Qwen/Qwen3-Embedding-4B", query: "Instruct: Given a task description, retrieve relevant skills that help complete the task.\nQuery: ", document: "" },
+    { model: "Qwen/Qwen3-Embedding-8B", query: "Instruct: Given a task description, retrieve relevant skills that help complete the task.\nQuery: ", document: "" },
+    { model: "intfloat/e5-base-v2", query: "query: ", document: "passage: " },
+    { model: "gateway/intfloat/multilingual-e5-small", query: "query: ", document: "passage: " },
+    { model: "BAAI/bge-base-en-v1.5", query: "Represent this sentence for searching relevant passages: ", document: "" },
+    { model: "intfloat/multilingual-e5-large-instruct", query: "", document: "" },
+    { model: "BAAI/bge-m3", query: "", document: "" },
+  ])("uses the verified role formats for $model", async ({ model, query, document }) => {
+    const config = testConfig();
+    if (config.inference.mode !== "remote") throw new Error("expected remote");
+    config.inference.embedding.model = model;
+    const clients = createClients(config);
+    for (const [role, prefix] of [["query", query], ["document", document]] as const) {
+      await clients.embed(["original text"], role);
+      expect(requests.at(-1)?.body).toEqual({ model, input: [prefix + "original text"] });
+    }
+    await clients.embed(["original text"]);
+    expect(requests.at(-1)?.body).toEqual({ model, input: ["original text"] });
+  });
+
+  test.each([
+    ["microsoft/harrier-oss-v1-270m", true],
+    ["microsoft/harrier-oss-v1-0.6b", true],
+    ["microsoft/harrier-oss-v1-27b", true],
+    ["infinity/microsoft/harrier-oss-v1-0.6b", true],
+    ["Xenova/gte-small", false],
+    ["another/embedding-model", false],
+    ["another/harrier-oss-v1-0.6b", false],
+  ])("formats only Harrier queries for model %s", async (model, needsInstruction) => {
+    const config = testConfig();
+    if (config.inference.mode !== "remote") throw new Error("expected remote");
+    config.inference.embedding.model = model;
+    const clients = createClients(config);
+    const texts = ["diagnose stopped containers", "write a test"];
+
+    await clients.embed(texts, "query");
+    expect(requests.at(-1)?.body).toEqual({
+      model,
+      input: needsInstruction ? [
+        "Instruct: Given a task description, retrieve relevant skills that help complete the task.\nQuery: diagnose stopped containers",
+        "Instruct: Given a task description, retrieve relevant skills that help complete the task.\nQuery: write a test",
+      ] : texts,
+    });
+
+    await clients.embed(texts, "document");
+    expect(requests.at(-1)?.body).toEqual({ model, input: texts });
+    await clients.embed(texts);
+    expect(requests.at(-1)?.body).toEqual({ model, input: texts });
+    expect(texts).toEqual(["diagnose stopped containers", "write a test"]);
+  });
+
   test("uses optional Bearer auth and returns vectors", async () => {
     process.env.SKILLMUX_TEST_EMBED_KEY = "vk-test-key";
     const clients = createClients(

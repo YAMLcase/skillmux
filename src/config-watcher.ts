@@ -19,6 +19,7 @@ export const LIVE_RELOAD_KEYS = new Set([
   "output.max_top_k",
   "inference.embedding.endpoint",
   "inference.embedding.api_key_env",
+  "inference.embedding.query_prefix",
   "inference.reranker.adapter",
   "inference.reranker.endpoint",
   "inference.reranker.model",

@@ -123,7 +123,7 @@ export function toFtsQuery(text: string): string | null {
       text
         .toLowerCase()
         .split(/[^\p{L}\p{N}]+/u)
-        .filter((t) => t.length >= 2),
+        .filter((t) => t.length > 0),
     ),
   ];
   if (terms.length === 0) return null;

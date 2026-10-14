@@ -13,12 +13,12 @@ describe("db utils", () => {
     // Case folding and duplicate removal
     expect(toFtsQuery("Hello hello WORLD")).toBe('"hello" OR "world"');
 
-    // Filters out terms shorter than 2 characters
-    expect(toFtsQuery("a b cd e")).toBe('"cd"');
+    // Single-character terms remain searchable
+    expect(toFtsQuery("a b cd e")).toBe('"a" OR "b" OR "cd" OR "e"');
 
-    // Empty text or only short terms
+    // Empty text or punctuation
     expect(toFtsQuery("   ")).toBeNull();
-    expect(toFtsQuery("a b")).toBeNull();
+    expect(toFtsQuery("!? ")).toBeNull();
 
     // CJK characters
     expect(toFtsQuery("容器 部署")).toBe('"容器" OR "部署"');

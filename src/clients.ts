@@ -1,5 +1,6 @@
 import type { Clients, Config, EmbeddingRole, RemoteRerankerConfig } from "./types";
 import { expandHome } from "./config";
+import { formatEmbeddingInputs } from "./embedding-format";
 import { assertHostAllowed } from "./install";
 import type { pipeline as createPipeline } from "@huggingface/transformers";
 
@@ -287,10 +288,6 @@ async function getLocalEmbedder(config: Config): Promise<FeatureExtractor> {
   return localEmbedder;
 }
 
-const HARRIER_MODEL = /(?:^|\/)microsoft\/harrier-oss-v1-(?:270m|0\.6b|27b)$/;
-const HARRIER_QUERY_PREFIX =
-  "Instruct: Given a task description, retrieve relevant skills that help complete the task.\nQuery: ";
-
 /**
  * Real HTTP clients or in-process local ONNX inference clients.
  * Every remote HTTP call is bounded by inference.timeout_ms; timeouts and transport
@@ -300,9 +297,10 @@ const HARRIER_QUERY_PREFIX =
 export function createClients(config: Config): Clients {
   const clients: Clients = {
     async embed(texts: string[], role?: EmbeddingRole): Promise<Float32Array[]> {
+      const input = formatEmbeddingInputs(texts, config.inference.embedding, role);
       if (config.inference.mode === "local") {
         const pipe = await getLocalEmbedder(config);
-        const output = await pipe(texts, { pooling: "mean", normalize: true });
+        const output = await pipe(input, { pooling: "mean", normalize: true });
         const dim = output.dims[1];
         if (
           dim === undefined ||
@@ -319,9 +317,6 @@ export function createClients(config: Config): Clients {
       }
 
       const embedding = config.inference.embedding;
-      const input = role === "query" && HARRIER_MODEL.test(embedding.model)
-        ? texts.map((text) => HARRIER_QUERY_PREFIX + text)
-        : texts;
       assertInferenceHostAllowed(embedding.endpoint, config.egress?.allowed_hosts);
       let response: Response;
       try {

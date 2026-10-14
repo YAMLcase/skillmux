@@ -174,6 +174,28 @@ const docs = [
 
 describe("embedding client", () => {
   test.each([
+    { model: "Qwen/Qwen3-Embedding-0.6B", query: "Instruct: Given a task description, retrieve relevant skills that help complete the task.\nQuery: ", document: "" },
+    { model: "gateway/Qwen/Qwen3-Embedding-4B", query: "Instruct: Given a task description, retrieve relevant skills that help complete the task.\nQuery: ", document: "" },
+    { model: "Qwen/Qwen3-Embedding-8B", query: "Instruct: Given a task description, retrieve relevant skills that help complete the task.\nQuery: ", document: "" },
+    { model: "intfloat/e5-base-v2", query: "query: ", document: "passage: " },
+    { model: "gateway/intfloat/multilingual-e5-small", query: "query: ", document: "passage: " },
+    { model: "BAAI/bge-base-en-v1.5", query: "Represent this sentence for searching relevant passages: ", document: "" },
+    { model: "intfloat/multilingual-e5-large-instruct", query: "", document: "" },
+    { model: "BAAI/bge-m3", query: "", document: "" },
+  ])("uses the verified role formats for $model", async ({ model, query, document }) => {
+    const config = testConfig();
+    if (config.inference.mode !== "remote") throw new Error("expected remote");
+    config.inference.embedding.model = model;
+    const clients = createClients(config);
+    for (const [role, prefix] of [["query", query], ["document", document]] as const) {
+      await clients.embed(["original text"], role);
+      expect(requests.at(-1)?.body).toEqual({ model, input: [prefix + "original text"] });
+    }
+    await clients.embed(["original text"]);
+    expect(requests.at(-1)?.body).toEqual({ model, input: ["original text"] });
+  });
+
+  test.each([
     ["microsoft/harrier-oss-v1-270m", true],
     ["microsoft/harrier-oss-v1-0.6b", true],
     ["microsoft/harrier-oss-v1-27b", true],

@@ -48,7 +48,13 @@ export type ONNXDtype =
   | "q1"
   | "q1f16";
 
-export interface ModelConfig {
+export interface EmbeddingPrefixOverrides {
+  /** Omit to use the model preset; an empty string disables the prefix. */
+  query_prefix?: string;
+  document_prefix?: string;
+}
+
+export interface ModelConfig extends EmbeddingPrefixOverrides {
   model: string;
   device?: ONNXDevice;
   dtype?: ONNXDtype;
@@ -61,7 +67,7 @@ export interface LocalInferenceConfig {
   embedding: ModelConfig & { dimension: number };
 }
 
-export interface RemoteEmbeddingConfig {
+export interface RemoteEmbeddingConfig extends EmbeddingPrefixOverrides {
   provider: "openai";
   endpoint: string;
   model: string;

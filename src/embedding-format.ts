@@ -1,4 +1,4 @@
-import type { EmbeddingRole } from "./types";
+import type { EmbeddingPrefixOverrides, EmbeddingRole } from "./types";
 
 export interface EmbeddingPrefixes {
   query_prefix: string;
@@ -27,17 +27,17 @@ const PRESETS = [
   },
 ];
 
-export function resolveEmbeddingPrefixes(embedding: { model: string }): EmbeddingPrefixes {
+export function resolveEmbeddingPrefixes(embedding: { model: string } & EmbeddingPrefixOverrides): EmbeddingPrefixes {
   const preset = PRESETS.find((entry) => entry.model.test(embedding.model));
   return {
-    query_prefix: preset?.query_prefix ?? "",
-    document_prefix: preset?.document_prefix ?? "",
+    query_prefix: embedding.query_prefix ?? preset?.query_prefix ?? "",
+    document_prefix: embedding.document_prefix ?? preset?.document_prefix ?? "",
   };
 }
 
 export function formatEmbeddingInputs(
   texts: string[],
-  embedding: { model: string },
+  embedding: { model: string } & EmbeddingPrefixOverrides,
   role?: EmbeddingRole,
 ): string[] {
   if (role === undefined) return texts;

@@ -173,6 +173,30 @@ const docs = [
 ];
 
 describe("embedding client", () => {
+  test.each(["microsoft/harrier-oss-v1-0.6b", "Qwen/Qwen3-Embedding-0.6B", "intfloat/e5-base-v2", "custom-alias"])(
+    "explicit prefixes override presets independently, including empty strings, for %s",
+    async (model) => {
+      const config = testConfig();
+      if (config.inference.mode !== "remote") throw new Error("expected remote");
+      config.inference.embedding.model = model;
+      config.inference.embedding.query_prefix = "";
+      config.inference.embedding.document_prefix = "Document: \n";
+      const clients = createClients(config);
+
+      await clients.embed(["original text"], "query");
+      expect(requests.at(-1)?.body).toEqual({ model, input: ["original text"] });
+      await clients.embed(["original text"], "document");
+      expect(requests.at(-1)?.body).toEqual({ model, input: ["Document: \noriginal text"] });
+
+      config.inference.embedding.query_prefix = "Custom task: \n";
+      config.inference.embedding.document_prefix = "";
+      await clients.embed(["original text"], "query");
+      expect(requests.at(-1)?.body).toEqual({ model, input: ["Custom task: \noriginal text"] });
+      await clients.embed(["original text"], "document");
+      expect(requests.at(-1)?.body).toEqual({ model, input: ["original text"] });
+    },
+  );
+
   test.each([
     { model: "Qwen/Qwen3-Embedding-0.6B", query: "Instruct: Given a task description, retrieve relevant skills that help complete the task.\nQuery: ", document: "" },
     { model: "gateway/Qwen/Qwen3-Embedding-4B", query: "Instruct: Given a task description, retrieve relevant skills that help complete the task.\nQuery: ", document: "" },

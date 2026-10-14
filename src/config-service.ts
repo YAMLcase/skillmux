@@ -55,6 +55,7 @@ export const RESTART_REQUIRED_KEYS = [
   "inference.embedding.dimension",
   "inference.embedding.device",
   "inference.embedding.dtype",
+  "inference.embedding.document_prefix",
 ];
 
 export const RELOADABLE_KEYS = [
@@ -67,6 +68,7 @@ export const RELOADABLE_KEYS = [
   "output.max_top_k",
   "inference.embedding.endpoint",
   "inference.embedding.api_key_env",
+  "inference.embedding.query_prefix",
   "inference.reranker.adapter",
   "inference.reranker.endpoint",
   "inference.reranker.model",

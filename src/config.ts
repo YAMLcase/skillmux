@@ -17,6 +17,8 @@ const onnxDtypeSchema = z.enum([
 
 const modelSchema = z.object({
   model: z.string().min(1),
+  query_prefix: z.string().optional(),
+  document_prefix: z.string().optional(),
   device: onnxDeviceSchema.optional(),
   dtype: onnxDtypeSchema.optional(),
 }).strict();
@@ -70,6 +72,8 @@ const configSchema = z.object({
         model: z.string().min(1),
         dimension: z.number().int().positive(),
         api_key_env: z.string().min(1).optional(),
+        query_prefix: z.string().optional(),
+        document_prefix: z.string().optional(),
       }).strict(),
       reranker: z.object({
         adapter: z.enum(["jina-v1", "bifrost-v1"]),

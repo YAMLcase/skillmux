@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Database } from "bun:sqlite";
-import { ftsSearch, openIndex, replaceSkills, type SkillRow } from "../src/db";
+import { ftsSearch, openIndex, replaceSkills, upsertSkill, type SkillRow } from "../src/db";
 
 function skill(skill_id: string, overrides: Partial<SkillRow> = {}): SkillRow {
   return { skill_id, title: "Tool", description: "Instructions", aliases: "", content_sha256: "hash", ...overrides };
@@ -99,6 +99,7 @@ test("technical names keep C++, C# and C distinct across migration and increment
     expect(ftsSearch(db, "C", 5).map((row) => row.skill_id)).toEqual(["c-help"]);
     expect(ftsSearch(db, "++ #", 5)).toEqual([]);
     replaceSkills(db, rows);
+    upsertSkill(db, { ...rows[0]!, aliases: ["cpp"], body: "Instructions" });
     expect(ftsSearch(db, "help with C++!", 5).map((row) => row.skill_id)).toContain("cpp-help");
     expect(ftsSearch(db, "C#", 5).map((row) => row.skill_id)).toEqual(["csharp-help"]);
   } finally {

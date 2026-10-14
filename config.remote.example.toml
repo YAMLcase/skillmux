@@ -22,13 +22,19 @@ model = "your-embedding-model"
 dimension = 1024
 api_key_env = "EMBEDDING_API_KEY"
 
+# Omit prefixes to use the verified preset for known model IDs (unknown IDs stay
+# plain). Set either prefix to "" to disable that side's client formatting when
+# the inference service already handles it. Custom aliases can set both values.
+# query_prefix = "Instruct: Retrieve relevant skills for this task.\nQuery: "
+# document_prefix = ""
+
 [inference.reranker]
 adapter = "jina-v1"
 endpoint = "https://reranker.example.com/v1/rerank"
 model = "your-reranker-model"
 api_key_env = "RERANKER_API_KEY"
 
-# Optional: output configuration for resolve_skill ranked candidates.
-# [output]
-# top_k = 10
-# max_top_k = 50
+# Reranking returns at most k_rerank candidates, so max_top_k must not exceed it.
+[output]
+top_k = 10
+max_top_k = 10

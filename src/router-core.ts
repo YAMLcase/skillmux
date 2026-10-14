@@ -312,7 +312,7 @@ export async function backfillEmbeddings(): Promise<number> {
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const chunk = pending.slice(i, i + BATCH_SIZE);
     try {
-      const vectors = await clients.embed(chunk.map(rerankText));
+      const vectors = await clients.embed(chunk.map(rerankText), "document");
       db.transaction(() => {
         chunk.forEach((row, j) => {
           const vector = vectors[j];
@@ -535,7 +535,7 @@ export async function retrieveAndRerank(
 
   const embedPromise =
     !input.forceLexical && clients.embed
-      ? clients.embed([input.query]).then(
+      ? clients.embed([input.query], "query").then(
         (res) => res,
         (err) => ({ error: err }),
       )

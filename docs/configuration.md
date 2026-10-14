@@ -176,8 +176,25 @@ verify readiness.
 See [`config.remote.example.toml`](../config.remote.example.toml). Embeddings
 must implement the OpenAI-compatible `{ model, input }` contract. Configure the
 complete request URL as `inference.embedding.endpoint`; Skillmux does not append
-or rewrite its path or query string. Optional
-reranking uses a versioned wire-protocol adapter and a complete request URL:
+or rewrite its path or query string.
+
+For remote `microsoft/harrier-oss-v1-270m`, `microsoft/harrier-oss-v1-0.6b`, and
+`microsoft/harrier-oss-v1-27b`, including provider-prefixed names such as
+`infinity/microsoft/harrier-oss-v1-0.6b`, Skillmux adds this task instruction to
+query embedding input:
+
+```text
+Instruct: Given a task description, retrieve relevant skills that help complete the task.
+Query: <original query>
+```
+
+Harrier [requires an instruction on queries](https://huggingface.co/microsoft/harrier-oss-v1-0.6b#usage).
+Configure the endpoint to embed the supplied text without adding its own query instruction.
+Skillmux embeds skill documents as plain title, description, and aliases, so
+existing document vectors remain valid. BM25 and reranking receive the original
+query. Other model names, including custom aliases, keep their plain input.
+
+Optional reranking uses a versioned wire-protocol adapter and a complete request URL:
 
 ```toml
 [inference.reranker]

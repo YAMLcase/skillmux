@@ -146,11 +146,24 @@ flowchart LR
 
 Skillmux builds candidates in stages:
 
-1. SQLite FTS5 ranks lexical matches with BM25.
+1. Skillmux places complete skill ID matches first in the lexical list, followed
+   by complete title matches and SQLite FTS5 matches ranked with BM25.
 2. Local or remote embeddings rank semantic similarity.
 3. Reciprocal-rank fusion combines both lists.
 4. An optional reranker scores the fused candidates.
 5. Returns up to effective `top_k` ranked candidates.
+
+The lexical index includes skill IDs, titles, descriptions, and aliases.
+Search keeps single-character terms such as `R` and distinguishes `C++`, `C#`,
+and `C`. Complete ID/title matching trims surrounding whitespace and ignores
+ASCII letter case. The lexical budget (`recall.k_lexical`) includes these exact
+matches. RRF and the reranker can change their position in the final shortlist.
+
+On first opening an older index, Skillmux rebuilds the FTS table from stored
+skill metadata in a transaction. It preserves skill rows, vectors, and existing
+index metadata, so this upgrade does not require embedding backfill. This
+change retains the Unicode tokenizer's existing English word-form and Chinese
+segmentation limitations.
 
 The default local inference configuration uses FTS5 and quantized
 `Xenova/gte-small` embeddings. Skillmux CLI installations cache the

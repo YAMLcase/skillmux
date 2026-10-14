@@ -23,10 +23,6 @@ export function openIndex(stateDir: string): Database {
     aliases TEXT NOT NULL,
     content_sha256 TEXT NOT NULL
   )`);
-  db.run(`CREATE VIRTUAL TABLE IF NOT EXISTS skills_fts USING fts5(
-    skill_id UNINDEXED, title, description, aliases,
-    tokenize = 'unicode61 remove_diacritics 2'
-  )`);
   db.run(`CREATE TABLE IF NOT EXISTS vectors (
     skill_id TEXT PRIMARY KEY,
     content_sha256 TEXT NOT NULL,
@@ -43,7 +39,24 @@ export function openIndex(stateDir: string): Database {
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
   )`);
+  migrateLexicalIndex(db);
   return db;
+}
+
+/** Rebuild only the derived FTS data; canonical skills and vectors stay intact. */
+function migrateLexicalIndex(db: Database): void {
+  db.transaction(() => {
+    const version = getIndexMeta(db, "lexical_schema_version");
+    if (version === "2") return;
+    db.run("DROP TABLE IF EXISTS skills_fts");
+    db.run(`CREATE VIRTUAL TABLE skills_fts USING fts5(
+      skill_id, title, description, aliases,
+      tokenize = "unicode61 remove_diacritics 2 tokenchars '+#'"
+    )`);
+    db.run(`INSERT INTO skills_fts (skill_id, title, description, aliases)
+      SELECT skill_id, title, description, aliases FROM skills`);
+    setIndexMeta(db, "lexical_schema_version", "2");
+  })();
 }
 
 export function upsertSkill(db: Database, skill: VaultSkill): void {
@@ -115,15 +128,16 @@ export function getSkillRow(db: Database, skillId: string): SkillRow | null {
  * Sanitize free text into an FTS5 OR-query; returns null when no usable terms
  * remain. Terms keep any Unicode letters/digits (CJK included) so non-ASCII
  * queries still get lexical recall — unicode61 tokenizes contiguous CJK runs
- * as single tokens, so matching works at that granularity.
+ * as single tokens, so matching works at that granularity. Keep + and # to
+ * agree with the index tokenizer and distinguish technical names like C++/C#.
  */
 export function toFtsQuery(text: string): string | null {
   const terms = [
     ...new Set(
       text
         .toLowerCase()
-        .split(/[^\p{L}\p{N}]+/u)
-        .filter((t) => t.length >= 2),
+        .split(/[^\p{L}\p{N}+#]+/u)
+        .filter((t) => /[\p{L}\p{N}]/u.test(t)),
     ),
   ];
   if (terms.length === 0) return null;
@@ -131,16 +145,25 @@ export function toFtsQuery(text: string): string | null {
 }
 
 export function ftsSearch(db: Database, text: string, k: number): SkillRow[] {
+  if (k <= 0) return [];
   const query = toFtsQuery(text);
   if (query === null) return [];
-  return db
+  const name = text.trim().toLowerCase();
+  const exact = db.query(`SELECT * FROM skills
+    WHERE lower(skill_id) = ? OR lower(title) = ?
+    ORDER BY CASE WHEN lower(skill_id) = ? THEN 0 ELSE 1 END, skill_id
+    LIMIT ?`).all(name, name, name, k) as SkillRow[];
+  if (exact.length === k) return exact;
+  const ranked = db
     .query(
       `SELECT s.* FROM skills_fts f
        JOIN skills s ON s.skill_id = f.skill_id
        WHERE skills_fts MATCH ?
-       ORDER BY bm25(skills_fts) LIMIT ?`,
+       ORDER BY bm25(skills_fts), s.skill_id LIMIT ?`,
     )
     .all(query, k) as SkillRow[];
+  const seen = new Set(exact.map((row) => row.skill_id));
+  return [...exact, ...ranked.filter((row) => !seen.has(row.skill_id))].slice(0, k);
 }
 
 export function findExactMatch(db: Database, query: string): SkillRow | null {

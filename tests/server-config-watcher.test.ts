@@ -90,6 +90,30 @@ afterEach(async () => {
 });
 
 describe("server config watcher lifecycle", () => {
+  test("resolved prefix defaults do not create a false desired/active revision mismatch", async () => {
+    const root = mkdtempSync(join(tmpdir(), "skillmux-server-prefix-revision-"));
+    dirs.push(root);
+    mkdirSync(join(root, "vault"), { recursive: true });
+    const configPath = join(root, "config.toml");
+    writeToml(configPath, configToml(root, 20));
+    process.env[ADMIN_TOKEN_ENV] = "test-admin-token";
+    handle = await startServer({
+      transport: "http",
+      port: 0,
+      configPath,
+      clients: { embed: async (texts) => texts.map(() => Float32Array.from([1, 0, 0])) },
+    });
+
+    const response = await fetch(`http://127.0.0.1:${handle.port}/admin/v1/config`, {
+      headers: { Authorization: "Bearer test-admin-token" },
+    });
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.desired.inference.embedding.query_prefix).toBe("");
+    expect(data.desired.inference.embedding.document_prefix).toBe("");
+    expect(data.runtime.active_revision).toBe(data.runtime.desired_source_hash);
+  });
+
   test("applies allowlisted config changes to the active runtime", async () => {
     const root = mkdtempSync(join(tmpdir(), "skillmux-server-config-"));
     dirs.push(root);

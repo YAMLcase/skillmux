@@ -51,7 +51,10 @@ describe("Config Service (AC4, AC5, AC6)", () => {
         expect(effective.inference.embedding.document_prefix).toBe(prefix);
         expect(sources["inference.embedding.query_prefix"]).toBe("toml");
         expect(sources["inference.embedding.document_prefix"]).toBe("toml");
-        expect(Bun.TOML.parse(readFileSync(CONFIG_FILE, "utf-8")).inference.embedding.query_prefix).toBe(prefix);
+        const persisted = Bun.TOML.parse(readFileSync(CONFIG_FILE, "utf-8")) as {
+          inference: { embedding: { query_prefix: string } };
+        };
+        expect(persisted.inference.embedding.query_prefix).toBe(prefix);
       }
     }
   });

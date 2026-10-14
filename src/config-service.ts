@@ -120,6 +120,13 @@ export function computeHash(data: unknown): string {
   return createHash("sha256").update(str).digest("hex").slice(0, 16);
 }
 
+/** Compare runtime and displayed configs using the same effective prefix values. */
+export function computeConfigHash(config: Config): string {
+  const normalized = structuredClone(config);
+  Object.assign(normalized.inference.embedding, resolveEmbeddingPrefixes(normalized.inference.embedding));
+  return computeHash(normalized);
+}
+
 export async function getEffectiveConfig(configPath?: string): Promise<{
   effective: Config;
   sources: ConfigSourceMap;

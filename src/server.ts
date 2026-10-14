@@ -28,6 +28,7 @@ import { redactedErrorLog } from "./logger";
 import type { Clients, Config } from "./types";
 import {
   computeHash,
+  computeConfigHash,
   getEffectiveConfig,
   getLocalConfigStatus,
   setDottedKey,
@@ -606,7 +607,7 @@ export async function startServer(opts?: {
               const deployment = describeDeployment(config);
               const desiredHash = computeHash(effective);
               const snapshot = snapshots.acquire();
-              const activeRevision = computeHash(snapshot.snapshot.config);
+              const activeRevision = computeConfigHash(snapshot.snapshot.config);
               snapshot.release();
               const status =
                 configWatcher?.reloadStatus() ?? inactiveReloadStatus;

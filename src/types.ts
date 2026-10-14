@@ -221,7 +221,7 @@ export interface FetchAuditRow {
 export type EmbeddingRole = "query" | "document";
 
 export interface Clients {
-  /** Omitted role preserves plain document input for existing callers. */
+  /** Omitted role preserves unformatted input for existing callers. */
   embed(texts: string[], role?: EmbeddingRole): Promise<Float32Array[]>;
   rerank?: (query: string, docs: { skill_id: string; text: string }[]) => Promise<number[]>;
 }
